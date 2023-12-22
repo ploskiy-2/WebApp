@@ -1,0 +1,200 @@
+﻿@using WebAppForBD.Data
+@page "/movie"
+
+@inject MovieService movieService
+@inject CommunicationService communicationService
+@inject NavigationManager navigationManager
+
+
+<PageTitle>Movies</PageTitle>
+
+<h1>Enter the tittle of movie in the field below</h1>
+
+<!-- Поле ввода для добавления текста -->
+<input @bind="tittleForSearch" />
+<button @onclick=SearchMovie>Вывести</button>
+
+
+@if (isSearchStarted && !isSearchCompleted)
+{
+    <p>Loading...</p>
+}
+else if (isSearchCompleted && movie != null)
+{
+         <p>@description</p>
+         <img src=@img />
+        <pre>@((MarkupString)movie.Print())</pre>
+
+        <pre>@((MarkupString)movie.OutputActor(actors))</pre>
+
+        <pre>@((MarkupString)movie.OutputTags(tags))</pre>
+
+        ///<pre>@((MarkupString)movie.OutputSimMov(similaryMovies))</pre>
+
+}
+
+
+
+
+@code {
+
+    string currentUrl = "";
+
+    // Переменная для хранения нового вводимого текста
+    private string tittleForSearch;
+
+    string img = "";
+    string description = "";
+
+    bool isSearchCompleted = false;
+    bool isSearchStarted = false;
+
+    Movie movie = new Movie();
+    Dictionary<string, double> similaryMovies = new Dictionary<string, double>();
+
+    IEnumerable<Human> actors = new HashSet<Human>();
+    IEnumerable<Tag> tags = new HashSet<Tag>();
+
+    // Метод для добавления нового элемента в список
+    private void ClearItem()
+    {
+        if (!string.IsNullOrEmpty(tittleForSearch))
+        {
+            tittleForSearch = string.Empty; // Очистить поле ввода после добавления
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        currentUrl = navigationManager.Uri;
+        int index = currentUrl.IndexOf("name=");
+        if (index != -1 && tittleForSearch==null)
+        {
+            string substring = currentUrl.Substring(index + "name=".Length);
+            string decodedUrl = System.Net.WebUtility.UrlDecode(substring);
+            FindMovie(decodedUrl);
+        }
+    }
+   // protected void OnDispose() => base.Dispose();
+    private void ClearOutput()
+    {
+        bool isSearchCompleted = false;
+        bool isSearchStarted = false;
+        string img = "";
+        string description = "";
+        string movieForSearch = "";
+        Movie movie = new Movie();
+        Dictionary<string, double> similaryMovies = new Dictionary<string, double>();
+        IEnumerable<Human> actors = new HashSet<Human>();
+        IEnumerable<Tag> tags = new HashSet<Tag>();
+    }
+    private async Task SearchMovie()
+    {
+        if (!string.IsNullOrEmpty(tittleForSearch))
+        {
+            await FindMovie(tittleForSearch);
+        }
+    }
+    private Task FindMovie(string tittleForSearch)
+    {
+        return Task.Run(() =>
+        {
+            Console.WriteLine("я тут начал работу");
+            isSearchStarted = true;
+            isSearchCompleted = false;
+
+            string img = "";
+            string description = "";
+
+            movie = movieService.GetMoviesByTitle(tittleForSearch);
+            actors = movieService.GetActors(movie);
+            tags = movieService.GetTags(movie);
+
+            //similaryMovies = movieService.GetSimilaryMovies(movie, actors, tags);
+
+            //RequestInfoAPI(movie);
+
+            isSearchCompleted = true;
+            isSearchStarted = false;
+            ClearOutput();
+            ClearItem();
+        });
+    }
+    private void NavigateToTagMovies(string tagTitle)
+    {
+        navigationManager.NavigateTo($"/tag?name={tagTitle}");
+    }
+    public async Task RequestInfoAPI(Movie movie)
+    {
+        const string rapidApiKey = "4a5ba1a9ccmshfb4d2d166326b3bp14494ajsn959dbb983166";
+        const string rapidApiHost = "imdb8.p.rapidapi.com";
+
+        string title = movie.tittle.Replace(" ", "%20").ToLower();
+        string autoCompleteUrl = $"https://{rapidApiHost}/auto-complete?q={title}";
+
+        using (HttpClient client = new HttpClient())
+        {
+            var request = new HttpRequestMessage
+                {
+                    Method = HttpMethod.Get,
+                    RequestUri = new Uri(autoCompleteUrl),
+                    Headers =
+            {
+                { "X-RapidAPI-Key", rapidApiKey },
+                { "X-RapidAPI-Host", rapidApiHost },
+            },
+                };
+
+            using (var response = await client.SendAsync(request))
+            {
+                response.EnsureSuccessStatusCode();
+                var body = await response.Content.ReadAsStringAsync();
+
+                int index0 = body.IndexOf("https:");
+                int index1 = body.IndexOf("\",", index0);
+                img = body.Substring(index0, (index1 - index0));
+
+                int index2 = body.IndexOf("\"id\"", index1);
+                int index3 = body.IndexOf("\"l\"", index2);
+                var movieId = body.Substring(index2 + 6, (index3 - index2) - 8);
+
+                await InvokeAsync(StateHasChanged);
+                await RequestDescriptionAPI(movieId);
+            }
+        }
+    }
+
+    public async Task RequestDescriptionAPI(string movieId)
+    {
+        const string rapidApiKey = "4a5ba1a9ccmshfb4d2d166326b3bp14494ajsn959dbb983166";
+        const string rapidApiHost = "imdb8.p.rapidapi.com";
+
+        string getPlotsUrl = $"https://{rapidApiHost}/title/get-plots?tconst={movieId}";
+
+        using (HttpClient client = new HttpClient())
+        {
+            var request = new HttpRequestMessage
+                {
+                    Method = HttpMethod.Get,
+                    RequestUri = new Uri(getPlotsUrl),
+                    Headers =
+            {
+                { "X-RapidAPI-Key", rapidApiKey },
+                { "X-RapidAPI-Host", rapidApiHost },
+            },
+                };
+
+            using (var response = await client.SendAsync(request))
+            {
+                response.EnsureSuccessStatusCode();
+                var body = await response.Content.ReadAsStringAsync();
+
+                int index0 = body.IndexOf("\"text\"");
+                int index1 = body.IndexOf("\"}", index0);
+                description = body.Substring(index0 + 8, (index1 - index0 - 8));
+
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+}

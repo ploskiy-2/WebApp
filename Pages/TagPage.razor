@@ -1,0 +1,107 @@
+﻿@using WebAppForBD.Data
+@page "/tag"
+
+@inject MovieService movieService
+@inject CommunicationService communicationService
+@inject NavigationManager navigationManager
+
+<PageTitle>Tag</PageTitle>
+
+<h1>Enter the tittle of tag in the field below</h1>
+
+<!-- Поле ввода для добавления текста -->
+<input @bind="tittleForSearch" />
+<button @onclick="SearchTag">Вывести</button>
+
+
+@if (isSearchStarted && !isSearchCompleted)
+{
+            <p>Loading...</p>
+}
+else if (isSearchCompleted)
+{
+
+        <pre>@((MarkupString)tag.Print(movies))</pre>
+
+
+}
+
+
+
+@code {
+    string currentUrl = "";
+    protected override void OnInitialized()
+    {
+        currentUrl = navigationManager.Uri;
+        int index = currentUrl.IndexOf("name=");
+        if (index != -1 && tittleForSearch == null)
+        {
+            string substring = currentUrl.Substring(index + "name=".Length);
+            string decodedUrl = System.Net.WebUtility.UrlDecode(substring);
+            tittleForSearch = decodedUrl;
+            SearchTag();
+            //FindTag(decodedUrl);
+        }
+
+    }
+
+
+
+    // Переменная для хранения нового вводимого текста
+    private string tittleForSearch;
+
+    bool isSearchCompleted = false;
+    bool isSearchStarted = false;
+    Tag tag = new Tag() { };
+    IEnumerable<Movie> movies = new HashSet<Movie>();
+
+    private void ClearItem()
+    {
+        if (!string.IsNullOrEmpty(tittleForSearch))
+        {
+            tittleForSearch = string.Empty; // Очистить поле ввода после добавления
+        }
+    }
+    private void ClearOutput()
+    {
+        //nameForSearch = "";
+        Tag actor = new Tag() { };
+        isSearchCompleted = false;
+        isSearchStarted = false;
+        movies = new HashSet<Movie>();
+    }
+    private async Task SearchTag()
+    {
+        if (!string.IsNullOrEmpty(tittleForSearch))
+        {
+            await FindTagg(tittleForSearch);
+        }
+    }
+    private Task FindTagg(string tittleForSearch)
+    {
+        return Task.Run(() =>
+        {
+            isSearchStarted = true;
+            isSearchCompleted = false;
+
+
+            movies = movieService.GetMoviesForTag(tittleForSearch);
+
+
+
+            isSearchCompleted = true;
+            isSearchStarted = false;
+            //ClearOutput();
+            ClearItem();
+        });
+    }
+    private void TagClicked(string tagTitle)
+    {
+        communicationService.TagClicked(tagTitle);
+    }
+    private void NavigateToTagMovies(string tagTitle)
+    {
+        navigationManager.NavigateTo($"/movie?name={tagTitle}");
+        TagClicked(tagTitle);
+    }
+}

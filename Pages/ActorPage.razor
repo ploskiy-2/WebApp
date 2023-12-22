@@ -1,0 +1,94 @@
+﻿@using WebAppForBD.Data
+@page "/actor"
+
+@inject MovieService movieService
+@inject CommunicationService communicationService
+@inject NavigationManager navigationManager
+<PageTitle>Actor</PageTitle>
+
+<h1>Enter the name of actor in the field below</h1>
+
+<!-- Поле ввода для добавления текста -->
+<input @bind="nameForSearch" />
+<button @onclick="SearchActor">Вывести</button>
+
+@if (isSearchStarted && !isSearchCompleted)
+{
+        <p>Loading...</p>
+}
+else if (isSearchCompleted)
+{
+
+    <pre>@((MarkupString)actor.Print(movies))</pre>
+
+
+}
+
+
+
+@code {
+    // Переменная для хранения нового вводимого текста
+    private string nameForSearch;
+
+    bool isSearchCompleted = false;
+    bool isSearchStarted = false;
+    Human actor = new Human() { };
+    IEnumerable<Movie> movies = new HashSet<Movie>();
+
+
+
+    // Метод для добавления нового элемента в список
+    private void ClearItem()
+    {
+        if (!string.IsNullOrEmpty(nameForSearch))
+        {
+            nameForSearch = string.Empty; // Очистить поле ввода после добавления
+        }
+    }
+    string currentUrl = "";
+    protected override void OnInitialized()
+    {
+        currentUrl = navigationManager.Uri;
+        int index = currentUrl.IndexOf("name=");
+        if (index != -1 && nameForSearch == null)
+        {
+            string substring = currentUrl.Substring(index + "name=".Length);
+            string decodedUrl = System.Net.WebUtility.UrlDecode(substring);
+            nameForSearch = decodedUrl;
+            FindActor(decodedUrl);
+        }
+
+    }
+    private async Task SearchActor()
+    {
+        if (!string.IsNullOrEmpty(nameForSearch))
+        {
+            await FindActor(nameForSearch);
+        }
+    }
+    private void ClearOutput()
+    {
+        //nameForSearch = "";
+        Human actor = new Human() { };
+        isSearchCompleted = false;
+        isSearchStarted = false;
+        movies = new HashSet<Movie>();
+    }
+    private Task FindActor(string nameForSearch)
+    {
+        return Task.Run(() =>
+        {
+            isSearchStarted = true;
+            isSearchCompleted = false;
+            Console.WriteLine("Я ЗДЕСЬ");
+            movies = movieService.GetMoviesForActor(nameForSearch);
+            
+            
+
+            isSearchCompleted = true;
+            isSearchStarted = false;
+            //ClearOutput();
+            ClearItem();
+        });
+    }
+}
